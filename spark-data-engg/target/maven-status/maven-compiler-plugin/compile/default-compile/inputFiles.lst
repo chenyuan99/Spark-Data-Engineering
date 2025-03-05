@@ -1,0 +1,17 @@
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter4/MariaDBManager.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter3/DailyStockUploaderJob.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter4/VisitStatsDBBrowser.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter6/ScoreCardForLastActionJob.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter4/RedisWriter.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter3/GlobalStockDBBrowser.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter4/StreamingWebsiteAnalytics.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter4/WebsiteVisitsDataGenerator.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/setup/SetupPrerequisites.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter6/RedisWriter.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter4/ShoppingCartTopicBrowser.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter3/RawStockDataGenerator.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter4/CountryStatsBrowser.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter6/LastActionStatsBrowser.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter4/MariaDBWriter.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter6/LongLastActionExtractorJob.java
+/Users/yuanchen/IdeaProjects/Spark-Data-Engineering/spark-data-engg/src/main/java/com/learning/sparkdataengg/chapter3/StockAggregatorJob.java

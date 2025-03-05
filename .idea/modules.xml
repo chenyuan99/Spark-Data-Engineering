@@ -3,7 +3,6 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/Exercise Files.iml" filepath="$PROJECT_DIR$/.idea/Exercise Files.iml" />
-      <module fileurl="file://$PROJECT_DIR$/spark-data-engg/Spark-Data-Engg.iml" filepath="$PROJECT_DIR$/spark-data-engg/Spark-Data-Engg.iml" />
     </modules>
   </component>
 </project>

@@ -9,8 +9,5 @@
         <module name="Spark-Data-Engg" />
       </profile>
     </annotationProcessing>
-    <bytecodeTargetLevel>
-      <module name="Spark-Data-Engg" target="11" />
-    </bytecodeTargetLevel>
   </component>
 </project>
