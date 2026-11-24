@@ -1,6 +1,8 @@
-"""Run the Chapter 3 stock aggregation on local Spark and Sail."""
+"""Compare the Chapter 3 stock aggregation on Spark, Sail, or Spark with Comet."""
 import argparse
 import os
+import re
+import sys
 from math import isclose
 from pathlib import Path
 from statistics import median
@@ -25,20 +27,26 @@ GROUP BY STOCK_DATE, ITEM_NAME
 """
 
 
-def run_query(spark, label, rounds, data):
+def run_query(spark, label, rounds, data_path):
     def collect():
-        spark.read.parquet(data.as_uri()).createOrReplaceTempView("GLOBAL_STOCK")
-        return spark.sql(QUERY).collect()
+        spark.read.parquet(data_path).createOrReplaceTempView("GLOBAL_STOCK")
+        query = spark.sql(QUERY)
+        return query, query.collect()
 
     try:
-        rows = collect()  # Warm up the engine and the filesystem cache.
+        query, rows = collect()  # Warm up the engine and the filesystem cache.
         if not rows:
             raise RuntimeError(f"{label} returned no stock groups")
+        if label == "Comet":
+            plan = query._jdf.queryExecution().executedPlan().toString()
+            print(plan, flush=True)
+            if not re.search(r"\bComet(?:NativeScan|Scan|HashAggregate|\w*ShuffleExchange)\b", plan):
+                raise RuntimeError("The stock query plan shows no Comet scan, aggregate, or shuffle")
 
         timings = []
         for _ in range(rounds):
             start = perf_counter()
-            rows = collect()
+            _, rows = collect()
             timings.append(perf_counter() - start)
 
         duration = median(timings)
@@ -79,7 +87,10 @@ def compare(spark_groups, sail_groups):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rounds", type=int, default=5)
-    parser.add_argument("--spark-only", action="store_true")
+    engines = parser.add_mutually_exclusive_group()
+    engines.add_argument("--spark-only", action="store_true")
+    engines.add_argument("--comet-jar", type=Path,
+                         help="Compare Spark with Comet using this Linux plugin JAR")
     parser.add_argument("--data", type=Path, default=DATA)
     parser.add_argument("--generate", type=int, metavar="COPIES",
                         help="Write scaled stock fixtures to a new --data path and exit")
@@ -89,6 +100,11 @@ def main():
         parser.error("--rounds must be positive")
     if args.threads < 1:
         parser.error("--threads must be positive")
+    if args.comet_jar is not None:
+        if sys.platform != "linux":
+            parser.error("The published Comet JAR requires Linux. Use WSL2 or a Linux container.")
+        if args.generate is not None or not args.comet_jar.is_file():
+            parser.error("--comet-jar requires an existing JAR and a benchmark run")
     data = args.data.resolve()
     if args.generate is not None:
         if args.generate < 1 or data.exists():
@@ -96,30 +112,48 @@ def main():
     elif not data.is_dir():
         parser.error(f"Parquet directory does not exist: {data}")
 
-    spark = (
+    builder = (
         SparkSession.builder.master(f"local[{args.threads}]")
         .appName("Stock aggregation pilot")
         .config("spark.sql.shuffle.partitions", str(args.threads))
         .config("spark.ui.enabled", "false")
-        .getOrCreate()
     )
+    if args.comet_jar is not None:
+        # Put the JAR on the driver classpath before the first JVM launch.
+        jar = str(args.comet_jar.resolve())
+        builder.config("spark.driver.extraClassPath", jar)
+        builder.config("spark.memory.offHeap.enabled", "true")
+        builder.config("spark.memory.offHeap.size", "512m")
+    spark = builder.getOrCreate()
     spark.sparkContext.setLogLevel("ERROR")
     if args.generate is not None:
         try:
-            stocks = spark.read.parquet(DATA.as_uri())
+            stocks = spark.read.parquet(str(DATA))
             copies = spark.range(args.generate).withColumnRenamed("id", "replica")
             scaled = stocks.crossJoin(copies).withColumn(
                 "OPENING_STOCK",
                 (F.col("OPENING_STOCK") + (F.xxhash64("replica", "ITEM_NAME") % 31 + 31))
                 .cast(stocks.schema["OPENING_STOCK"].dataType),
             ).drop("replica")
-            scaled.write.partitionBy("STOCK_DATE", "WAREHOUSE_ID").parquet(data.as_uri())
+            scaled.write.partitionBy("STOCK_DATE", "WAREHOUSE_ID").parquet(str(data))
         finally:
             spark.stop()
         return
 
-    spark_groups, spark_time = run_query(spark, "Spark", args.rounds, data)
+    # Hadoop Path handles spaces in native paths and escapes them itself.
+    spark_groups, spark_time = run_query(spark, "Spark", args.rounds, str(data))
     if args.spark_only:
+        return
+    if args.comet_jar is not None:
+        comet = (
+            builder.config("spark.plugins", "org.apache.spark.CometPlugin")
+            .config("spark.shuffle.manager",
+                    "org.apache.spark.sql.comet.execution.shuffle.CometShuffleManager")
+            .getOrCreate()
+        )
+        comet_groups, comet_time = run_query(comet, "Comet", args.rounds, str(data))
+        compare(spark_groups, comet_groups)
+        print(f"Stock totals match. Spark/Comet median time ratio: {spark_time / comet_time:.2f}x.")
         return
 
     os.environ["SAIL_EXECUTION__DEFAULT_PARALLELISM"] = str(args.threads)
@@ -130,7 +164,7 @@ def main():
     try:
         _, port = server.listening_address
         spark = SparkSession.builder.remote(f"sc://127.0.0.1:{port}").getOrCreate()
-        sail_groups, sail_time = run_query(spark, "Sail", args.rounds, data)
+        sail_groups, sail_time = run_query(spark, "Sail", args.rounds, data.as_uri())
         compare(spark_groups, sail_groups)
         print(f"Stock totals match. Spark/Sail median time ratio: {spark_time / sail_time:.2f}x.")
     finally:
