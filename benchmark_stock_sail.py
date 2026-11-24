@@ -6,7 +6,7 @@ import sys
 from math import isclose
 from pathlib import Path
 from statistics import median
-from time import perf_counter
+from time import perf_counter, sleep
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
@@ -27,7 +27,7 @@ GROUP BY STOCK_DATE, ITEM_NAME
 """
 
 
-def run_query(spark, label, rounds, data_path):
+def run_query(spark, label, rounds, data_path, keep_alive=False):
     def collect():
         spark.read.parquet(data_path).createOrReplaceTempView("GLOBAL_STOCK")
         query = spark.sql(QUERY)
@@ -62,7 +62,8 @@ def run_query(spark, label, rounds, data_path):
             raise RuntimeError(f"{label} returned duplicate stock groups")
         return groups, duration
     finally:
-        spark.stop()
+        if not keep_alive:
+            spark.stop()
 
 
 def compare(spark_groups, sail_groups):
@@ -95,7 +96,11 @@ def main():
     parser.add_argument("--generate", type=int, metavar="COPIES",
                         help="Write scaled stock fixtures to a new --data path and exit")
     parser.add_argument("--threads", type=int, default=2)
+    parser.add_argument("--ui-seconds", type=int, default=0,
+                        help="Keep the Comet Spark UI open after verification for this many seconds")
     args = parser.parse_args()
+    if args.ui_seconds < 0 or (args.ui_seconds and args.comet_jar is None):
+        parser.error("--ui-seconds requires --comet-jar and a nonnegative duration")
     if args.rounds < 1:
         parser.error("--rounds must be positive")
     if args.threads < 1:
@@ -116,7 +121,8 @@ def main():
         SparkSession.builder.master(f"local[{args.threads}]")
         .appName("Stock aggregation pilot")
         .config("spark.sql.shuffle.partitions", str(args.threads))
-        .config("spark.ui.enabled", "false")
+        .config("spark.ui.enabled", str(bool(args.ui_seconds)).lower())
+        .config("spark.ui.port", "4040")
     )
     if args.comet_jar is not None:
         # Put the JAR on the driver classpath before the first JVM launch.
@@ -151,9 +157,16 @@ def main():
                     "org.apache.spark.sql.comet.execution.shuffle.CometShuffleManager")
             .getOrCreate()
         )
-        comet_groups, comet_time = run_query(comet, "Comet", args.rounds, str(data))
-        compare(spark_groups, comet_groups)
-        print(f"Stock totals match. Spark/Comet median time ratio: {spark_time / comet_time:.2f}x.")
+        try:
+            comet_groups, comet_time = run_query(
+                comet, "Comet", args.rounds, str(data), keep_alive=bool(args.ui_seconds))
+            compare(spark_groups, comet_groups)
+            print(f"Stock totals match. Spark/Comet median time ratio: {spark_time / comet_time:.2f}x.", flush=True)
+            if args.ui_seconds:
+                print(f"Comet Spark UI available on port 4040 for {args.ui_seconds}s.", flush=True)
+                sleep(args.ui_seconds)
+        finally:
+            comet.stop()
         return
 
     os.environ["SAIL_EXECUTION__DEFAULT_PARALLELISM"] = str(args.threads)
