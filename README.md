@@ -142,6 +142,44 @@ GROUP BY STOCK_DATE, ITEM_NAME
 
 **Prerequisites:** MariaDB running on `localhost:3306`, database `global_stock`, user `spark`/`spark`.
 
+#### Local Spark and Sail pilot
+
+From the exercise repository root, use a separate Python 3.11 environment and set
+`JAVA_HOME` to a complete Java 17 installation for the Spark baseline. On Windows,
+use the Hadoop setup above.
+
+```powershell
+python -m pip install "pyspark[connect]==3.5.8" "pysail==0.7.3"
+python benchmark_stock_sail.py
+```
+
+The script starts local Spark and then a local Sail server, reads the bundled
+partitioned Parquet data, and runs the Chapter 3 aggregation in each engine.
+It compares row counts and stock totals for every date and item, and prints
+median warm timings for scan, aggregation, and result collection. Use
+`--spark-only` to run the baseline with PySpark alone. The script never writes
+to MariaDB.
+
+The bundled dataset is a compatibility fixture. To generate a larger synthetic
+dataset outside the repository and benchmark it separately, run:
+
+```powershell
+$stockData = Join-Path $env:TEMP "stock-benchmark-5000"
+python benchmark_stock_sail.py --generate 5000 --data $stockData
+python benchmark_stock_sail.py --data $stockData --threads 2 --rounds 7
+```
+
+The generator writes 5,000 rows per source row, varies opening inventory
+deterministically, and preserves the date and warehouse partitions. It requires
+a new output directory. The benchmark excludes generation time.
+
+`--threads` sets Spark's local worker threads and shuffle partition count and
+Sail's execution parallelism. For a controlled run, give the benchmark
+environment a fixed CPU and memory budget, such as a Linux container with
+`--cpus=2 --memory=4g`, and record the actual input row count and Parquet size.
+The timings include the Sail Spark Connect round trip. For engine-only
+comparisons, use Spark Connect for both engines.
+
 ---
 
 ### Chapter 4 – Structured Streaming: Real-Time Website Analytics
